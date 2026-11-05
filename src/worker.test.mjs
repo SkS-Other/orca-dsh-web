@@ -1,6 +1,5 @@
 import { assert, test } from 'orca/testing'
 import {
-  hostKeyOf,
   isRemoteWorkspace,
   parseDshUrl,
   pickWorkspace,
@@ -42,9 +41,6 @@ test('выбирает проект по имени и ветке', () => {
 })
 
 test('различает локальный и удалённый хост', () => {
-  assert.equal(hostKeyOf({ hostId: 'local' }), 'local')
-  assert.equal(hostKeyOf({}), 'local')
-  assert.equal(hostKeyOf({ hostId: 'Dev/Win' }), 'Dev/Win')
   assert.equal(isRemoteWorkspace({ hostId: 'local' }), false)
   assert.equal(isRemoteWorkspace({}), false)
   assert.equal(isRemoteWorkspace({ hostId: 'Dev/Win' }), true)

@@ -4,28 +4,14 @@
   "id": "dsh-web",
   "name": "DSH Web",
   "version": "0.1.0",
-  "description": "Открывает DeepSeek Harness Web во вкладке Orca и держит по одному серверу на хост в фоновом терминале.",
+  "description": "Запускает DeepSeek Harness Web в tmux и открывает его во вкладке Orca.",
   "engines": {
     "orca": ">=1.4.248"
   },
   "pluginApi": 1,
   "main": "src/worker.mjs",
   "contributes": {
-    "panels": [
-      {
-        "id": "dsh-web",
-        "title": "DSH Web",
-        "icon": "globe",
-        "entry": "src/panel.tsx",
-        "ui": "components"
-      }
-    ],
     "commands": [
-      {
-        "id": "dsh-web.panel",
-        "title": "DSH Web: панель",
-        "when": "workspace"
-      },
       {
         "id": "dsh-web.open",
         "title": "DSH Web: открыть",
@@ -52,15 +38,15 @@
         "id": "dsh-web",
         "text": "DSH Web",
         "icon": "globe",
-        "tooltip": "Открыть панель DSH Web",
-        "command": "dsh-web.panel"
+        "tooltip": "Открыть DeepSeek Harness Web",
+        "command": "dsh-web.open"
       }
     ],
     "settings": [
       {
         "key": "command",
         "title": "Команда запуска",
-        "description": "Запускается в фоновом терминале Orca. Сервер должен печатать строку «dsh web: <url>».",
+        "description": "Запускается в tmux-сессии orca-dsh-web. Сервер должен печатать строку «dsh web: <url>».",
         "type": "string",
         "default": "dsh web --no-open --port 3080"
       }
@@ -69,12 +55,6 @@
   "capabilities": [
     {
       "kind": "workspace:read"
-    },
-    {
-      "kind": "terminal:send"
-    },
-    {
-      "kind": "terminal:read"
     },
     {
       "kind": "storage:own"
