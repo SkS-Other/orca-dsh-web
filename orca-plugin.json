@@ -1,0 +1,75 @@
+{
+  "manifestVersion": 2,
+  "execution": "trusted-worker",
+  "id": "dsh-web",
+  "name": "DSH Web",
+  "version": "0.1.0",
+  "description": "Открывает DeepSeek Harness Web во вкладке Orca и держит по одному серверу на хост в фоновом терминале.",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "pluginApi": 1,
+  "main": "src/worker.mjs",
+  "contributes": {
+    "commands": [
+      {
+        "id": "dsh-web.open",
+        "title": "DSH Web: открыть",
+        "when": "workspace"
+      },
+      {
+        "id": "dsh-web.stop",
+        "title": "DSH Web: остановить",
+        "when": "workspace"
+      },
+      {
+        "id": "dsh-web.restart",
+        "title": "DSH Web: перезапустить",
+        "when": "workspace"
+      }
+    ],
+    "events": [
+      {
+        "on": "workspace.changed"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "dsh-web",
+        "text": "DSH Web",
+        "icon": "globe",
+        "tooltip": "Открыть DeepSeek Harness Web",
+        "command": "dsh-web.open"
+      }
+    ],
+    "settings": [
+      {
+        "key": "command",
+        "title": "Команда запуска",
+        "description": "Запускается в фоновом терминале Orca. Сервер должен печатать строку «dsh web: <url>».",
+        "type": "string",
+        "default": "dsh web --no-open --port 3080"
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "terminal:send"
+    },
+    {
+      "kind": "terminal:read"
+    },
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "notifications:show"
+    }
+  ]
+}
