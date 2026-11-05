@@ -11,7 +11,21 @@
   "pluginApi": 1,
   "main": "src/worker.mjs",
   "contributes": {
+    "panels": [
+      {
+        "id": "dsh-web",
+        "title": "DSH Web",
+        "icon": "globe",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ],
     "commands": [
+      {
+        "id": "dsh-web.panel",
+        "title": "DSH Web: панель",
+        "when": "workspace"
+      },
       {
         "id": "dsh-web.open",
         "title": "DSH Web: открыть",
@@ -38,8 +52,8 @@
         "id": "dsh-web",
         "text": "DSH Web",
         "icon": "globe",
-        "tooltip": "Открыть DeepSeek Harness Web",
-        "command": "dsh-web.open"
+        "tooltip": "Открыть панель DSH Web",
+        "command": "dsh-web.panel"
       }
     ],
     "settings": [

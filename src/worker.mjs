@@ -302,6 +302,65 @@ async function restartInternal(orca) {
   return openInternal(orca)
 }
 
+let cachedPluginKey = null
+
+async function pluginKey() {
+  if (cachedPluginKey) return cachedPluginKey
+  try {
+    const { stdout } = await execFileAsync(cliCommand(), ['plugin', 'list', '--json'], {
+      timeout: 10000,
+    })
+    const plugins = JSON.parse(stdout)?.result?.plugins ?? []
+    const match =
+      plugins.find((plugin) => plugin.name === 'DSH Web' && plugin.hasWorker) ??
+      plugins.find((plugin) => plugin.name === 'DSH Web')
+    if (match?.pluginKey) {
+      cachedPluginKey = match.pluginKey
+      return cachedPluginKey
+    }
+  } catch {}
+  cachedPluginKey = 'local.dsh-web'
+  return cachedPluginKey
+}
+
+async function openPanel() {
+  const key = await pluginKey()
+  await execFileAsync(cliCommand(), ['plugin', 'open', key, '--panel', 'dsh-web', '--json'], {
+    timeout: 10000,
+  })
+  return 'Панель DSH Web открыта'
+}
+
+async function showTerminal(orca) {
+  const workspace = await focusedWorkspace(orca)
+  if (!workspace) throw new Error('Нет активного проекта Orca')
+  const servers = await readServers(orca)
+  const server = servers[hostKeyOf(workspace)]
+  if (!server?.terminalId) throw new Error('DSH Web не запущен')
+  await execFileAsync(
+    cliCommand(),
+    ['terminal', 'switch', '--terminal', server.terminalId, '--json'],
+    { timeout: 10000 },
+  )
+  return 'Терминал DSH Web открыт'
+}
+
+async function panelState(orca) {
+  const workspace = await focusedWorkspace(orca)
+  if (!workspace) {
+    return { workspace: null, host: null, running: false, origin: null }
+  }
+  const servers = await readServers(orca)
+  const server = servers[hostKeyOf(workspace)]
+  const running = server ? await serverAlive(orca, server) : false
+  return {
+    workspace: workspace.name,
+    host: workspace.hostId ?? 'local',
+    running,
+    origin: server?.url ? new URL(server.url).origin : null,
+  }
+}
+
 function command(orca, task) {
   return serial(async () => {
     try {
@@ -317,12 +376,16 @@ function command(orca, task) {
 
 export default async function activate(orca) {
   orca.log(`dsh-web: CLI ${cliCommand()}`)
+  orca.commands.register('dsh-web.panel', () => command(orca, () => openPanel()))
   orca.commands.register('dsh-web.open', () => command(orca, () => openInternal(orca)))
   orca.commands.register('dsh-web.stop', () => command(orca, () => stopInternal(orca)))
   orca.commands.register('dsh-web.restart', () => command(orca, () => restartInternal(orca)))
+  orca.panels.handle('dsh-web.panel', () => command(orca, () => openPanel()))
   orca.panels.handle('dsh-web.open', () => command(orca, () => openInternal(orca)))
   orca.panels.handle('dsh-web.stop', () => command(orca, () => stopInternal(orca)))
   orca.panels.handle('dsh-web.restart', () => command(orca, () => restartInternal(orca)))
+  orca.panels.handle('dsh-web.terminal', () => command(orca, () => showTerminal(orca)))
+  orca.panels.handle('dsh-web.panel.state', () => panelState(orca))
   orca.events.on('workspace.changed', () => {
     clearTimeout(refreshTimer)
     refreshTimer = setTimeout(() => {
