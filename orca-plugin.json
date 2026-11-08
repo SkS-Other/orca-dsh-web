@@ -3,8 +3,8 @@
   "execution": "trusted-worker",
   "id": "dsh-web",
   "name": "DSH Web",
-  "version": "0.1.0",
-  "description": "Запускает DeepSeek Harness Web в tmux и открывает его во вкладке Orca.",
+  "version": "0.2.0",
+  "description": "Запускает DeepSeek Harness Web (профиль web или unity) в tmux и открывает вкладку Orca.",
   "engines": {
     "orca": ">=1.4.248"
   },
@@ -14,17 +14,22 @@
     "commands": [
       {
         "id": "dsh-web.open",
-        "title": "DSH Web: открыть",
+        "title": "DSH Web: открыть (web)",
+        "when": "workspace"
+      },
+      {
+        "id": "dsh-web.openUnity",
+        "title": "DSH Web: открыть (unity)",
         "when": "workspace"
       },
       {
         "id": "dsh-web.stop",
-        "title": "DSH Web: остановить",
+        "title": "DSH Web: остановить проект",
         "when": "workspace"
       },
       {
-        "id": "dsh-web.restart",
-        "title": "DSH Web: перезапустить",
+        "id": "dsh-web.stopAll",
+        "title": "DSH Web: остановить все",
         "when": "workspace"
       }
     ],
@@ -38,17 +43,38 @@
         "id": "dsh-web",
         "text": "DSH Web",
         "icon": "globe",
-        "tooltip": "Открыть DeepSeek Harness Web",
+        "tooltip": "Открыть DSH (профиль web)",
         "command": "dsh-web.open"
+      },
+      {
+        "id": "dsh-web-unity",
+        "text": "DSH Unity",
+        "icon": "globe",
+        "tooltip": "Открыть DSH (профиль unity)",
+        "command": "dsh-web.openUnity"
       }
     ],
     "settings": [
       {
         "key": "command",
-        "title": "Команда запуска",
-        "description": "Запускается в tmux-сессии orca-dsh-web. Сервер должен печатать строку «dsh web: <url>».",
+        "title": "Команда запуска (web)",
+        "description": "Профиль web. Сервер должен печатать строку «dsh web: <url>»; --port 0 выбирает свободный порт.",
         "type": "string",
-        "default": "dsh web --no-open --port 3080"
+        "default": "dsh web --no-open --port 0"
+      },
+      {
+        "key": "unityCommand",
+        "title": "Команда запуска (unity)",
+        "description": "Профиль unity. Тот же формат вывода «dsh web: <url>».",
+        "type": "string",
+        "default": "dsh unity --no-open --port 0"
+      },
+      {
+        "key": "stopAfterSeconds",
+        "title": "Останавливать без вкладок через, сек",
+        "description": "После закрытия последней вкладки DSH хост гасится через это время. 0 — никогда.",
+        "type": "number",
+        "default": 60
       }
     ]
   },
