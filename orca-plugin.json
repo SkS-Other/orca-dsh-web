@@ -3,33 +3,47 @@
   "execution": "trusted-worker",
   "id": "dsh-web",
   "name": "DSH Web",
-  "version": "0.2.0",
-  "description": "Запускает DeepSeek Harness Web (профиль web или unity) в tmux и открывает вкладку Orca.",
+  "version": "0.3.0",
+  "description": "Запускает DeepSeek Harness Web в tmux и подтягивает профили из $DSH_HOME/profiles.",
   "engines": {
     "orca": ">=1.4.248"
   },
   "pluginApi": 1,
   "main": "src/worker.mjs",
   "contributes": {
+    "panels": [
+      {
+        "id": "dsh-web",
+        "title": "DSH",
+        "icon": "globe",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ],
     "commands": [
       {
+        "id": "dsh-web.panel",
+        "title": "DSH: профили",
+        "when": "workspace"
+      },
+      {
         "id": "dsh-web.open",
-        "title": "DSH Web: открыть (web)",
+        "title": "DSH: открыть (web)",
         "when": "workspace"
       },
       {
         "id": "dsh-web.openUnity",
-        "title": "DSH Web: открыть (unity)",
+        "title": "DSH: открыть (unity)",
         "when": "workspace"
       },
       {
         "id": "dsh-web.stop",
-        "title": "DSH Web: остановить проект",
+        "title": "DSH: остановить проект",
         "when": "workspace"
       },
       {
         "id": "dsh-web.stopAll",
-        "title": "DSH Web: остановить все",
+        "title": "DSH: остановить все",
         "when": "workspace"
       }
     ],
@@ -41,31 +55,24 @@
     "statusBarItems": [
       {
         "id": "dsh-web",
-        "text": "DSH Web",
+        "text": "DSH",
         "icon": "globe",
-        "tooltip": "Открыть DSH (профиль web)",
-        "command": "dsh-web.open"
-      },
-      {
-        "id": "dsh-web-unity",
-        "text": "DSH Unity",
-        "icon": "globe",
-        "tooltip": "Открыть DSH (профиль unity)",
-        "command": "dsh-web.openUnity"
+        "tooltip": "Открыть DSH (выбрать профиль)",
+        "command": "dsh-web.panel"
       }
     ],
     "settings": [
       {
         "key": "command",
         "title": "Команда запуска (web)",
-        "description": "Профиль web. Сервер должен печатать строку «dsh web: <url>»; --port 0 выбирает свободный порт.",
+        "description": "Переопределяет команду для профиля web. Остальные профили запускаются как «dsh <profile>».",
         "type": "string",
         "default": "dsh web --no-open --port 0"
       },
       {
         "key": "unityCommand",
         "title": "Команда запуска (unity)",
-        "description": "Профиль unity. Тот же формат вывода «dsh web: <url>».",
+        "description": "Переопределяет команду для профиля unity. Остальные профили запускаются как «dsh <profile>».",
         "type": "string",
         "default": "dsh unity --no-open --port 0"
       },

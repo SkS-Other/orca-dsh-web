@@ -1,5 +1,9 @@
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { assert, test } from 'orca/testing'
 import {
+  discoverProfiles,
   idleDecision,
   isRemoteWorkspace,
   logFileFor,
@@ -90,4 +94,21 @@ test('останавливает только после закрытия вкл
   assert.deepEqual(idleDecision({ armed: true, misses: 1 }, false, 2), { armed: true, misses: 2, stop: true })
   assert.deepEqual(idleDecision({ armed: true, misses: 2 }, true, 2), { armed: true, misses: 0, stop: false })
   assert.deepEqual(idleDecision({ armed: true, misses: 0 }, false, 0), { armed: true, misses: 1, stop: false })
+})
+
+test('находит профили DSH по package.json и пропускает мусор', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'dsh-profiles-'))
+  try {
+    for (const name of ['web', 'reverse']) {
+      const dir = path.join(root, 'profiles', name)
+      await mkdir(dir, { recursive: true })
+      await writeFile(path.join(dir, 'package.json'), '{}')
+    }
+    await mkdir(path.join(root, 'profiles', 'empty'), { recursive: true })
+    await mkdir(path.join(root, 'profiles', 'bad name'), { recursive: true })
+    await writeFile(path.join(root, 'profiles', 'bad name', 'package.json'), '{}')
+    assert.deepEqual(await discoverProfiles(root), ['reverse', 'web'])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })

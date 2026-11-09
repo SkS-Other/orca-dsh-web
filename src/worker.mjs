@@ -10,11 +10,6 @@ const SESSION_PREFIX = 'orca-dsh-web'
 const STORE_KEY = 'servers'
 const LEGACY_SERVER_KEY = 'server'
 const LEGACY_SERVERS_KEY = 'servers-legacy'
-const PROFILES = ['web', 'unity']
-const DEFAULT_COMMANDS = {
-  web: 'dsh web --no-open --port 0',
-  unity: 'dsh unity --no-open --port 0',
-}
 const LOG_DIR = path.join(os.homedir(), '.cache', 'orca-dsh-web')
 const URL_RE = /dsh web:\s+(https?:\/\/\S+)/
 const FATAL_RE = /(?:dsh: (?:command )?not found|command not found|EADDRINUSE|address already in use|Cannot find module|ERR_MODULE_NOT_FOUND)/i
@@ -114,6 +109,42 @@ function fatalError(message) {
 
 function stripAnsi(text) {
   return text.replace(/\x1b\[[0-9;]*m/g, '')
+}
+
+function expandHome(value) {
+  if (value === '~') return os.homedir()
+  if (value.startsWith('~/') || value.startsWith('~\\')) return path.join(os.homedir(), value.slice(2))
+  return value
+}
+
+export function dshHome() {
+  const configured = process.env.DSH_HOME?.trim()
+  return configured ? expandHome(configured) : path.join(os.homedir(), '.dsh')
+}
+
+const PROFILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+export async function discoverProfiles(home = dshHome()) {
+  const root = path.join(home, 'profiles')
+  let entries
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  const names = []
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    if (!entry.isDirectory() || !PROFILE_NAME_RE.test(entry.name)) continue
+    try {
+      await fs.access(path.join(root, entry.name, 'package.json'))
+      names.push(entry.name)
+    } catch {}
+  }
+  return names
+}
+
+function defaultCommand(profile) {
+  return `dsh ${shellQuote(profile)} --no-open --port 0`
 }
 
 async function tmux(args, timeout = 10000) {
@@ -216,7 +247,7 @@ async function adoptSession(orca, workspace, profile) {
     workspaceId: workspace.id,
     hostId: workspace.hostId ?? null,
     profile,
-    command: DEFAULT_COMMANDS[profile],
+    command: await commandFor(orca, profile),
     logPath,
     armed: true,
   }
@@ -258,14 +289,10 @@ async function migrateLegacy(orca) {
   }
 }
 
-async function setStatus(orca, id, tone, tooltip) {
+async function setStatus(orca, text, tone, tooltip) {
   try {
-    await orca.host.call('statusBar.update', { id, tone, tooltip })
+    await orca.host.call('statusBar.update', { id: 'dsh-web', text, tone, tooltip })
   } catch {}
-}
-
-function statusId(profile) {
-  return profile === 'unity' ? 'dsh-web-unity' : 'dsh-web'
 }
 
 async function waitForUrl(logPath, session) {
@@ -285,8 +312,9 @@ async function waitForUrl(logPath, session) {
 }
 
 async function commandFor(orca, profile) {
-  const key = profile === 'unity' ? 'unityCommand' : 'command'
-  return (await orca.settings.get(key)) || DEFAULT_COMMANDS[profile]
+  if (profile === 'web') return (await orca.settings.get('command')) || defaultCommand('web')
+  if (profile === 'unity') return (await orca.settings.get('unityCommand')) || defaultCommand('unity')
+  return defaultCommand(profile)
 }
 
 async function startServer(orca, workspace, profile) {
@@ -370,28 +398,42 @@ async function notify(orca, body) {
   } catch {}
 }
 
+async function requireProfile(profile) {
+  const profiles = await discoverProfiles()
+  if (!profiles.includes(profile)) throw new Error(`Профиль DSH не найден: ${profile}`)
+}
+
 async function openProfile(orca, profile) {
+  await requireProfile(profile)
   const workspace = await focusedWorkspace(orca)
   if (!workspace) throw new Error('Нет активного проекта Orca')
   orca.log(`dsh-web: ${profile} для проекта ${workspace.name}`)
   const server = await ensureServer(orca, workspace, profile)
   orca.log(`dsh-web: сервер ${originOf(server.url)} (${profile})`)
   await openTab(server.url, workspace)
-  await setStatus(orca, statusId(profile), 'success', `DSH ${profile}: запущен (${workspace.name})`)
+  await refreshStatus(orca)
   return `DSH ${profile} открыт: ${originOf(server.url)}`
 }
 
 async function stopFocused(orca) {
   const workspace = await focusedWorkspace(orca).catch(() => null)
   if (!workspace) return 'Нет активного проекта Orca'
+  const servers = await readServers(orca)
   let stopped = 0
-  for (const profile of PROFILES) {
-    if (await stopServer(orca, serverKey(workspace.id, profile))) stopped += 1
+  for (const [key, server] of Object.entries(servers)) {
+    if (server?.workspaceId !== workspace.id) continue
+    if (await stopServer(orca, key)) stopped += 1
   }
-  for (const profile of PROFILES) {
-    await setStatus(orca, statusId(profile), 'neutral', `DSH ${profile}: остановлен`)
-  }
+  await refreshStatus(orca)
   return stopped > 0 ? `DSH остановлен (${workspace.name}, серверов: ${stopped})` : 'DSH уже остановлен'
+}
+
+async function stopProfile(orca, profile) {
+  const workspace = await focusedWorkspace(orca)
+  if (!workspace) throw new Error('Нет активного проекта Orca')
+  const stopped = await stopServer(orca, serverKey(workspace.id, profile))
+  await refreshStatus(orca)
+  return stopped ? `DSH ${profile} остановлен` : `DSH ${profile} уже остановлен`
 }
 
 async function stopAll(orca) {
@@ -406,10 +448,48 @@ async function stopAll(orca) {
       stopped += 1
     }
   }
-  for (const profile of PROFILES) {
-    await setStatus(orca, statusId(profile), 'neutral', `DSH ${profile}: остановлен`)
-  }
+  await refreshStatus(orca)
   return `DSH остановлен, серверов: ${stopped}`
+}
+
+async function panelState(orca) {
+  const workspace = await focusedWorkspace(orca)
+  const profiles = await discoverProfiles()
+  const servers = await readServers(orca)
+  const rows = []
+  for (const name of profiles) {
+    let server = workspace ? servers[serverKey(workspace.id, name)] : null
+    if (workspace && !server) server = await adoptSession(orca, workspace, name)
+    const running = Boolean(server && (await serverAlive(server)))
+    rows.push({ name, running, origin: running ? originOf(server.url) : null })
+  }
+  return { workspace: workspace?.name ?? null, host: workspace?.hostId ?? null, profiles: rows }
+}
+
+let cachedPluginKey = null
+
+async function pluginKey() {
+  if (cachedPluginKey) return cachedPluginKey
+  try {
+    const { stdout } = await execFileAsync(cliCommand(), ['plugin', 'list', '--json'], { timeout: 10000 })
+    const plugins = JSON.parse(stdout)?.result?.plugins ?? []
+    const match =
+      plugins.find((plugin) => plugin.name === 'DSH' && plugin.hasWorker) ??
+      plugins.find((plugin) => plugin.name === 'DSH Web') ??
+      plugins.find((plugin) => plugin.hasWorker && plugin.pluginKey === 'local.dsh-web')
+    if (match?.pluginKey) {
+      cachedPluginKey = match.pluginKey
+      return cachedPluginKey
+    }
+  } catch {}
+  cachedPluginKey = 'local.dsh-web'
+  return cachedPluginKey
+}
+
+async function openPanel() {
+  const key = await pluginKey()
+  await execFileAsync(cliCommand(), ['plugin', 'open', key, '--panel', 'dsh-web', '--json'], { timeout: 10000 })
+  return 'Панель DSH открыта'
 }
 
 async function sweepIdle(orca, servers) {
@@ -446,27 +526,29 @@ async function refreshStatus(orca) {
     const workspace = await focusedWorkspace(orca)
     const servers = await readServers(orca)
     if (!workspace) {
-      for (const profile of PROFILES) await setStatus(orca, statusId(profile), 'neutral', 'DSH: нет активного проекта')
+      await setStatus(orca, 'DSH', 'neutral', 'DSH: нет активного проекта')
       return
     }
     if (isRemoteWorkspace(workspace)) {
-      for (const profile of PROFILES) await setStatus(orca, statusId(profile), 'neutral', 'DSH: tmux только на локальном хосте')
+      await setStatus(orca, 'DSH', 'neutral', 'DSH: tmux только на локальном хосте')
       return
     }
-    for (const profile of PROFILES) {
+    const profiles = await discoverProfiles()
+    const running = []
+    for (const profile of profiles) {
       const key = serverKey(workspace.id, profile)
       const server = servers[key] ?? (await adoptSession(orca, workspace, profile))
-      const running = server ? await serverAlive(server) : false
-      await setStatus(
-        orca,
-        statusId(profile),
-        running ? 'success' : 'neutral',
-        `DSH ${profile}: ${running ? 'запущен' : 'остановлен'} (${workspace.name})`,
-      )
+      if (server && (await serverAlive(server))) running.push(profile)
     }
+    await setStatus(
+      orca,
+      running.length > 0 ? `DSH ${running.length}` : 'DSH',
+      running.length > 0 ? 'success' : 'neutral',
+      running.length > 0 ? `DSH: ${running.join(', ')} (${workspace.name})` : `DSH: профили не запущены (${workspace.name})`,
+    )
     await sweepIdle(orca, servers)
   } catch {
-    for (const profile of PROFILES) await setStatus(orca, statusId(profile), 'neutral', `DSH ${profile}`)
+    await setStatus(orca, 'DSH', 'neutral', 'DSH')
   } finally {
     refreshing = false
   }
@@ -488,10 +570,21 @@ function command(orca, task) {
 export default async function activate(orca) {
   orca.log(`dsh-web: CLI ${cliCommand()}`)
   await migrateLegacy(orca)
+  orca.commands.register('dsh-web.panel', () => command(orca, () => openPanel()))
   orca.commands.register('dsh-web.open', () => command(orca, () => openProfile(orca, 'web')))
   orca.commands.register('dsh-web.openUnity', () => command(orca, () => openProfile(orca, 'unity')))
   orca.commands.register('dsh-web.stop', () => command(orca, () => stopFocused(orca)))
   orca.commands.register('dsh-web.stopAll', () => command(orca, () => stopAll(orca)))
+  orca.panels.handle('dsh-web.panel.state', () => panelState(orca))
+  orca.panels.handle('dsh-web.panel', () => command(orca, () => openPanel()))
+  orca.panels.handle('dsh-web.openProfile', (input) => {
+    const profile = input && typeof input === 'object' && typeof input.profile === 'string' ? input.profile : ''
+    return command(orca, () => openProfile(orca, profile))
+  })
+  orca.panels.handle('dsh-web.stopProfile', (input) => {
+    const profile = input && typeof input === 'object' && typeof input.profile === 'string' ? input.profile : ''
+    return command(orca, () => stopProfile(orca, profile))
+  })
   orca.panels.handle('dsh-web.open', () => command(orca, () => openProfile(orca, 'web')))
   orca.panels.handle('dsh-web.openUnity', () => command(orca, () => openProfile(orca, 'unity')))
   orca.panels.handle('dsh-web.stop', () => command(orca, () => stopFocused(orca)))
