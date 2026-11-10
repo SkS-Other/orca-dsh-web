@@ -1,43 +1,45 @@
 # DSH Web
 
-Плагин Orca: держит по одному хосту DeepSeek Harness на проект и профиль и открывает
-Web UI во вкладке Orca.
+[Русская версия](README.ru.md)
 
-- В футере одна кнопка **DSH**: открывает панель со всеми профилями из
-  `$DSH_HOME/profiles` (по умолчанию `~/.dsh/profiles`). Новый профиль появляется в
-  панели после «Обновить», без перезагрузки плагина.
-- Для каждого профиля панель показывает статус, URL и кнопку «Открыть»; у запущенного
-  профиля рядом появляется иконка остановки. Открытие поднимает хост, если он ещё не
-  запущен, и создаёт вкладку проекта.
-- Команды в палитре: «профили», «открыть (web)», «открыть (unity)»,
-  «остановить проект», «остановить все».
-- Хосты не мешают друг другу: у каждого проекта свой tmux-сеанс
-  `orca-dsh-web-<hash>` и свой порт (`--port 0`), поэтому `split` на unity и
-  `lilly_web` на web могут работать одновременно.
-- Статус-бар показывает число живых хостов текущего проекта; зелёный — хотя бы один
-  профиль запущен.
-- Повторный запуск переиспользует живой хост; вкладок может быть несколько.
-- **Авто-стоп**: если все вкладки с адресом хоста закрыты, хост гасится через
-  `stopAfterSeconds` (по умолчанию 60 с, `0` — никогда). Отсчёт начинается только после
-  того, как плагин хотя бы раз увидел вкладку, поэтому DSH, открытый в обычном браузере,
-  не страдает.
-- Логи: `~/.cache/orca-dsh-web/dsh-web-<hash>.log`; вручную — `tmux attach -t orca-dsh-web-<hash>`.
+An Orca plugin: keeps one DeepSeek Harness host per project and profile and opens
+the Web UI in an Orca tab.
 
-Настройки: `command` (`dsh web --no-open --port 0`), `unityCommand`
+- The footer has a single **DSH** button: it opens a panel with all profiles from
+  `$DSH_HOME/profiles` (default `~/.dsh/profiles`). A new profile appears in the
+  panel after "Refresh", without reloading the plugin.
+- For each profile the panel shows the status, the URL and an "Open" button; a
+  running profile also gets a stop icon next to it. Opening brings the host up if
+  it is not running yet, and creates a project tab.
+- Commands in the palette: "profiles", "open (web)", "open (unity)",
+  "stop project", "stop all".
+- Hosts do not get in each other's way: each project has its own tmux session
+  `orca-dsh-web-<hash>` and its own port (`--port 0`), so `split` on unity and
+  `lilly_web` on web can run at the same time.
+- The status bar shows the number of live hosts of the current project; green
+  means at least one profile is running.
+- Launching again reuses a live host; there can be several tabs.
+- **Auto-stop**: when all tabs with the host's address are closed, the host is
+  shut down after `stopAfterSeconds` (60 s by default, `0` — never). The countdown
+  starts only after the plugin has seen the tab at least once, so a DSH opened in
+  a regular browser is unaffected.
+- Logs: `~/.cache/orca-dsh-web/dsh-web-<hash>.log`; manually — `tmux attach -t orca-dsh-web-<hash>`.
+
+Settings: `command` (`dsh web --no-open --port 0`), `unityCommand`
 (`dsh unity --no-open --port 0`), `stopAfterSeconds`.
 
-Ограничения:
+Limitations:
 
-- Работает только на локальном хосте: для удалённого workspace tmux недоступен.
-- DSH живёт в tmux, а не в терминале Orca, поэтому штатные хуки и статус DSH в Orca не работают.
-- Нужен установленный `tmux`.
-- Каждый хост — отдельный процесс DSH: держи открытыми только нужные проекты.
+- Works on the local host only: for a remote workspace tmux is unavailable.
+- DSH lives in tmux, not in the Orca terminal, so the standard hooks and the DSH status in Orca do not work.
+- Requires `tmux` to be installed.
+- Each host is a separate DSH process: keep only the projects you need open.
 
-Orca не позволяет плагинам добавлять строку в список агентов: плагин не заменяет
-встроенную строку DeepSeek Harness (она запускает `dsh-tui`), а добавляет свою панель
-и статус-бар.
+Orca does not let plugins add a row to the agents list: the plugin does not
+replace the built-in DeepSeek Harness row (it launches `dsh-tui`) but adds its own
+panel and status bar.
 
-## Проверка
+## Validation
 
 ```sh
 orca-ide plugin validate .
